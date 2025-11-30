@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CosmicHunger | Login</title>
+    <style>
+        /* --- استایل های T2 (فضای کیهانی) --- */
+        :root {
+            --bg-color: #08071d; /* عمق کیهان */
+            --ui-text: #40E0D0; /* فیروزه‌ای */
+            --accent: #A020F0; /* بنفش */
+            --danger: #FF0F50; /* قرمز */
+        }
+
+        body {
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-color);
+            font-family: 'Tahoma', sans-serif;
+            color: var(--ui-text);
+            overflow: hidden;
+            flex-direction: column;
+            text-align: center;
+        }
+
+        /* کارد مرکزی */
+        #login-card {
+            background: rgba(160, 32, 240, 0.1); /* بنفش شفاف */
+            padding: 40px 30px;
+            border-radius: 20px;
+            box-shadow: 0 0 40px rgba(64, 224, 208, 0.3); /* درخشش فیروزه‌ای */
+            border: 1px solid var(--ui-text);
+            max-width: 90%;
+        }
+
+        h1 {
+            color: var(--ui-text);
+            font-size: 1.8rem;
+            margin-bottom: 5px;
+        }
+
+        p {
+            color: #ccc;
+            margin-bottom: 30px;
+        }
+        
+        /* استایل برای ویجت تلگرام (اختیاری) */
+        .telegram-login-widget {
+            margin-top: 20px;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="login-card">
+        <h1>Login to CosmicHunger</h1>
+        <p>Please login with telegram to save your process</p>
+
+        <script async src="https://telegram.org/js/telegram-widget.js?22" 
+                data-telegram-login="8418712068:AAHAaYMaFfLpIjlnWyZLKYYs-_Honecl7p4" 
+                data-size="large" 
+                data-auth-url="login-ch.vlgnorhz.workers.dev/" 
+                data-request-access="write"></script>
+
+        <p style="font-size: 0.8rem; margin-top: 30px;">
+            This information just using for save your account in the game :)
+        </p>
+    </div>
+
+</body>
+</html>
