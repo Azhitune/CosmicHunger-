@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cosmic Hunger | T2 Mini-Game</title>
+    <style>
+        /* --- T1: Visual Atmosphere (CSS) --- */
+        :root {
+            --bg-color: #08071d; /* عمق کیهان */
+            --ui-text: #40E0D0; /* فیروزه‌ای */
+            --accent: #A020F0; /* بنفش */
+            --danger: #FF0F50; /* قرمز خطر */
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden; /* جلوگیری از اسکرول */
+            background-color: var(--bg-color);
+            font-family: 'Tahoma', sans-serif;
+            color: var(--ui-text);
+            touch-action: none; /* جلوگیری از زوم و رفتارهای پیش‌فرض لمسی */
+        }
+
+        /* پس‌زمینه متحرک (کهکشان‌ها) */
+        #background-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .nebula {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(60px);
+            opacity: 0.4;
+            animation: floatSpace 20s infinite alternate ease-in-out;
+        }
+
+        @keyframes floatSpace {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(50px, -50px) scale(1.2); }
+        }
+
+        /* هدر اطلاعات بازی */
+        #game-ui {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            box-sizing: border-box;
+            z-index: 10;
+            background: linear-gradient(to bottom, rgba(8, 7, 29, 0.8), transparent);
+            pointer-events: none; /* تا کلیک‌ها از روی UI رد شوند */
+        }
+
+        .stat-box {
+            font-size: 1.2rem;
+            font-weight: bold;
+            text-shadow: 0 0 10px var(--accent);
+        }
+
+        #timer { color: var(--ui-text); }
+        #score { color: #FFD700; } /* طلایی */
+
+        /* بوم بازی */
+        canvas {
+            display: block;
+            position: relative;
+            z-index: 5;
+        }
+
+        /* صفحه شروع و باخت */
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(8, 7, 29, 0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            color: var(--ui-text);
+            margin-bottom: 10px;
+            text-shadow: 0 0 20px var(--accent);
+        }
+
+        p { color: #ccc; margin-bottom: 30px; font-size: 1rem; max-width: 80%; }
+
+        button {
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 0 15px var(--accent);
+            transition: transform 0.2s;
+        }
+
+        button:active { transform: scale(0.95); }
+
+        .hidden { display: none !important; }
+
+    </style>
+</head>
+<body>
+
+    <div id="background-layer">
+        </div>
+
+    <div id="game-ui">
+        <div class="stat-box">⭐ <span id="score-val">0</span></div>
+        <div class="stat-box">⏳ <span id="time-val">60</span>s</div>
+    </div>
+
+    <div id="overlay">
+        <h1 id="overlay-title">Cosmic Hunger</h1>
+        <p id="overlay-desc">Move mouse or touch on the screen to control the black hole.<br>Be careful to don't have a collide with red black holes!</p>
+        <button id="start-btn">Start Game</button>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        // --- T2: Game Logic (JavaScript) ---
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score-val');
+        const timeEl = document.getElementById('time-val');
+        const overlay = document.getElementById('overlay');
+        const titleEl = document.getElementById('overlay-title');
+        const descEl = document.getElementById('overlay-desc');
+        const startBtn = document.getElementById('start-btn');
+        const bgLayer = document.getElementById('background-layer');
+
+        // تنظیمات بازی
+        let gameRunning = false;
+        let score = 0;
+        let timeLeft = 60;
+        let gameLoopId;
+        let timerInterval;
+        let frameCount = 0;
+
+        // فیزیک پلیر (سیاهچاله)
+        const player = {
+            x: window.innerWidth / 2,
+            y: window.innerHeight / 2,
+            radius: 20,
+            targetX: window.innerWidth / 2,
+            targetY: window.innerHeight / 2,
+            color: '#000000',
+            glow: '#40E0D0',
+            speed: 0.1 // ضریب نرمی حرکت (Lerp)
+        };
+
+        let stars = [];
+        let enemies = [];
+
+        // تنظیم سایز بوم
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // تولید پس‌زمینه تصادفی
+        function createNebulas() {
+            const colors = ['#A020F0', '#40E0D0', '#0000FF'];
+            for(let i=0; i<5; i++) {
+                const div = document.createElement('div');
+                div.className = 'nebula';
+                div.style.width = Math.random() * 300 + 100 + 'px';
+                div.style.height = div.style.width;
+                div.style.left = Math.random() * 100 + '%';
+                div.style.top = Math.random() * 100 + '%';
+                div.style.background = colors[Math.floor(Math.random() * colors.length)];
+                div.style.animationDuration = (Math.random() * 10 + 10) + 's';
+                bgLayer.appendChild(div);
+            }
+        }
+        createNebulas();
+
+        // --- سیستم ورودی (Input System) ---
+        // ماوس
+        window.addEventListener('mousemove', (e) => {
+            if (!gameRunning) return;
+            player.targetX = e.clientX;
+            player.targetY = e.clientY;
+        });
+
+        // لمس (موبایل)
+        window.addEventListener('touchmove', (e) => {
+            if (!gameRunning) return;
+            e.preventDefault(); // جلوگیری از اسکرول
+            player.targetX = e.touches[0].clientX;
+            player.targetY = e.touches[0].clientY;
+        }, { passive: false });
+
+        window.addEventListener('touchstart', (e) => {
+            if (!gameRunning) return;
+            player.targetX = e.touches[0].clientX;
+            player.targetY = e.touches[0].clientY;
+        });
+
+        // --- کلاس‌ها ---
+        class Star {
+            constructor() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.radius = Math.random() * 3 + 2;
+                this.color = `hsl(${Math.random()*60 + 40}, 100%, 70%)`; // زرد تا طلایی
+                this.vx = (Math.random() - 0.5) * 0.5; // حرکت خیلی آرام
+                this.vy = (Math.random() - 0.5) * 0.5;
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = this.color;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                // بازگشت از لبه‌ها
+                if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+                if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+            }
+        }
+
+        class Enemy {
+            constructor() {
+                // اسپان شدن دور از پلیر
+                do {
+                    this.x = Math.random() * canvas.width;
+                    this.y = Math.random() * canvas.height;
+                } while (Math.hypot(this.x - player.x, this.y - player.y) < 200);
+
+                this.radius = Math.random() * 15 + 10;
+                this.color = '#000';
+                this.glow = '#FF0F50'; // قرمز
+                this.speed = Math.random() * 1.5 + 0.5;
+                // حرکت تصادفی
+                const angle = Math.random() * Math.PI * 2;
+                this.vx = Math.cos(angle) * this.speed;
+                this.vy = Math.sin(angle) * this.speed;
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = this.glow;
+                ctx.fill();
+                ctx.strokeStyle = this.glow;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                
+                // جهش از دیوارها
+                if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+                if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+            }
+        }
+
+        // --- منطق اصلی بازی ---
+        function startGame() {
+            gameRunning = true;
+            score = 0;
+            timeLeft = 60;
+            player.radius = 20;
+            stars = [];
+            enemies = [];
+            
+            // تولید ستاره‌های اولیه
+            for(let i=0; i<20; i++) stars.push(new Star());
+
+            scoreEl.innerText = score;
+            timeEl.innerText = timeLeft;
+            overlay.classList.add('hidden');
+
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                timeEl.innerText = timeLeft;
+                if (timeLeft <= 0) gameOver(true);
+            }, 1000);
+
+            animate();
+        }
+
+        function gameOver(win) {
+            gameRunning = false;
+            clearInterval(timerInterval);
+            cancelAnimationFrame(gameLoopId);
+            
+            overlay.classList.remove('hidden');
+            if (win) {
+                titleEl.innerText = "Victory!";
+                titleEl.style.color = "#40E0D0";
+                descEl.innerText = `Great! You eat ${score} stars!!!`;
+            } else {
+                titleEl.innerText = "Destroyed!!!";
+                titleEl.style.color = "#FF0F50";
+                descEl.innerText = "You have collide with another black hole...";
+            }
+            startBtn.innerText = "Try again";
+        }
+
+        function animate() {
+            if (!gameRunning) return;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. آپدیت پلیر (حرکت نرم به سمت هدف)
+            const dx = player.targetX - player.x;
+            const dy = player.targetY - player.y;
+            player.x += dx * player.speed;
+            player.y += dy * player.speed;
+
+            // رسم پلیر
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+            ctx.fillStyle = "black";
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = player.glow;
+            ctx.fill();
+            ctx.strokeStyle = "white"; // لبه افق رویداد
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            // 2. مدیریت ستاره‌ها
+            if (frameCount % 30 === 0 && stars.length < 30) {
+                stars.push(new Star()); // تولید ستاره جدید
+            }
+
+            stars.forEach((star, index) => {
+                star.update();
+                star.draw();
+
+                // بررسی برخورد با ستاره
+                const dist = Math.hypot(player.x - star.x, player.y - star.y);
+                if (dist < player.radius + star.radius) {
+                    stars.splice(index, 1);
+                    score += 10;
+                    scoreEl.innerText = score;
+                    // رشد پلیر
+                    if (player.radius < 100) player.radius += 0.5;
+                }
+            });
+
+            // 3. مدیریت دشمنان
+            if (frameCount % 200 === 0) { // هر چند ثانیه یک دشمن اضافه شود
+                enemies.push(new Enemy());
+            }
+
+            enemies.forEach(enemy => {
+                enemy.update();
+                enemy.draw();
+
+                // بررسی برخورد با دشمن
+                const dist = Math.hypot(player.x - enemy.x, player.y - enemy.y);
+                if (dist < player.radius * 0.8 + enemy.radius * 0.8) { // برخورد کمی بخشنده
+                    gameOver(false);
+                }
+            });
+
+            frameCount++;
+            gameLoopId = requestAnimationFrame(animate);
+        }
+
+        startBtn.addEventListener('click', startGame);
+
+    </script>
+</body>
+</html>
